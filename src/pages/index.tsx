@@ -1,11 +1,14 @@
-import dynamic from 'next/dynamic';
-
-const Test = dynamic(() => import('@/components/Test/index'));
+import Link from 'next/link';
+import { useEffect } from 'react';
 
 export default function Home() {
+  useEffect(() => {
+    console.log('aaa');
+  });
   return (
     <>
-      <Test />
+      <h1>Three.js Sketch</h1>
+      <Link href="/r3f">toR3f</Link>
     </>
   );
 }

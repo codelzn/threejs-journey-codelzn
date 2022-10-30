@@ -1,3 +1,5 @@
+import type { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+
 declare module '*.vert' {
   const content: string;
   export default content;
