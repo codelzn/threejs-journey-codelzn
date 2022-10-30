@@ -1,43 +1,62 @@
 import React, { useRef } from 'react';
 import * as THREE from 'three';
-import { Canvas, useFrame, extend, useThree, Node } from '@react-three/fiber';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      orbitControls: Node<OrbitControls, typeof OrbitControls>;
-    }
-  }
-}
-extend({ OrbitControls });
+import { Canvas } from '@react-three/fiber';
+import {
+  Html,
+  OrbitControls,
+  TransformControls,
+  PivotControls,
+  Text,
+  Float,
+  MeshReflectorMaterial,
+} from '@react-three/drei';
 
 const Experience: React.FC = () => {
-  const { camera, gl } = useThree();
   const cubeRef = useRef<THREE.Mesh>(null!);
-  const groupRef = useRef<THREE.Group>(null!);
-  useFrame((state, delta) => {
-    groupRef.current.rotation.x += 0.01;
-    groupRef.current.rotation.y += 0.01;
-  });
+  const sphereRef = useRef<THREE.Mesh>(null!);
   return (
     <>
-      <orbitControls args={[camera, gl.domElement]} />
+      <OrbitControls makeDefault />
       <directionalLight position={[1, 2, 3]} intensity={1.5} />
       <ambientLight intensity={1.5} />
-      <group ref={groupRef}>
-        <mesh position-x={-2}>
+      <PivotControls anchor={[0, 0, 0]} depthTest={false}>
+        <mesh position-x={-2} ref={sphereRef}>
           <sphereGeometry />
           <meshStandardMaterial color="orange" />
+          <Html
+            position={[1, 1, 0]}
+            wrapperClass="label"
+            center
+            distanceFactor={8}
+            occlude={[cubeRef, sphereRef]}
+          >
+            Test
+          </Html>
         </mesh>
-        <mesh scale={1.5} position-x={2} ref={cubeRef}>
-          <boxGeometry />
-          <meshStandardMaterial color="red" />
-        </mesh>
-      </group>
+      </PivotControls>
+      {/* <TransformControls object={cubeRef} /> */}
+      <mesh scale={1.5} position-x={2} ref={cubeRef}>
+        <boxGeometry />
+        <meshStandardMaterial color="red" />
+      </mesh>
       <mesh position={-1} rotation-x={-Math.PI * 0.5} scale={10}>
         <planeGeometry />
-        <meshStandardMaterial color="green" side={THREE.DoubleSide} />
+        {/* <meshStandardMaterial color="green" side={THREE.DoubleSide} /> */}
+        <MeshReflectorMaterial mirror={0.5} resolution={512} mixBlur={1} color="yellow" />
       </mesh>
+      <Float speed={5} floatIntensity={2}>
+        <Text
+          position={[0, 2, 0]}
+          fontSize={1}
+          color="salmon"
+          font="/bangers-v20-latin-regular.woff"
+          maxWidth={2}
+          textAlign="center"
+        >
+          hello world!
+          <meshNormalMaterial side={THREE.DoubleSide} />
+        </Text>
+      </Float>
     </>
   );
 };

@@ -7,7 +7,9 @@ export default function R3fHome() {
         <li>
           <Link href="/r3f/sketch01">Sketch01</Link>
         </li>
-        <li></li>
+        <li>
+        <Link href="/r3f/sketch02">Sketch02</Link>
+        </li>
       </ul>
     </>
   );
