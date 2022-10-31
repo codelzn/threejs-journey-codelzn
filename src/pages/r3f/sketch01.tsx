@@ -18,6 +18,7 @@ import {
   Sky,
   Environment,
   Lightformer,
+  Stage,
 } from '@react-three/drei';
 import { useControls, button, Leva } from 'leva';
 import { Perf } from 'r3f-perf';
@@ -116,56 +117,71 @@ const Experience: React.FC = () => {
       />
       <ambientLight intensity={1.5} />
       <Sky sunPosition={sunPosition} /> */}
-      <Environment background>
-        <color args={['white']} attach="background" />
-        <Lightformer position-z={-5} scale={10} color="red" intensity={10} />
-        {/* <mesh position-z={-5} scale={10}>
+      {/* <Environment
+        background
+        preset="sunset"
+        ground={{
+          height: 7,
+          radius: 28,
+          scale: 100,
+        }}
+      > */}
+      {/* <color args={['white']} attach="background" /> */}
+      {/* <Lightformer position-z={-5} scale={10} color="red" intensity={10} form="ring" /> */}
+      {/* <mesh position-z={-5} scale={10}>
           <planeGeometry />
           <meshBasicMaterial color="white" />
         </mesh> */}
-      </Environment>
-      <PivotControls anchor={[0, 0, 0]} depthTest={false}>
-        <mesh position-x={-2} ref={sphereRef} scale={scale} castShadow>
-          <sphereGeometry />
-          <meshStandardMaterial color="orange" />
-          <Html
-            position={[1, 1, 0]}
-            wrapperClass="label"
-            center
-            distanceFactor={8}
-            occlude={[cubeRef, sphereRef]}
-          >
-            Test
-          </Html>
+      {/* </Environment> */}
+      <Stage
+        contactShadow={{ opacity: 0.2, blur: 3 }}
+        environment="sunset"
+        preset="portrait"
+        intensity={2}
+      >
+        <PivotControls anchor={[0, 0, 0]} depthTest={false}>
+          <mesh position-x={-2} ref={sphereRef} scale={scale} castShadow>
+            <sphereGeometry />
+            <meshStandardMaterial color="orange" />
+            <Html
+              position={[1, 1, 0]}
+              wrapperClass="label"
+              center
+              distanceFactor={8}
+              occlude={[cubeRef, sphereRef]}
+            >
+              Test
+            </Html>
+          </mesh>
+        </PivotControls>
+        {/* <TransformControls object={cubeRef} /> */}
+        <mesh
+          scale={1.5}
+          position={[position.x, position.y, 0]}
+          ref={cubeRef}
+          visible={visible}
+          castShadow
+        >
+          <boxGeometry />
+          <meshStandardMaterial color={color} />
         </mesh>
-      </PivotControls>
-      {/* <TransformControls object={cubeRef} /> */}
-      <mesh
-        scale={1.5}
-        position={[position.x, position.y, 0]}
-        ref={cubeRef}
-        visible={visible}
-        castShadow
-      >
-        <boxGeometry />
-        <meshStandardMaterial color={color} />
-      </mesh>
-      <mesh
-        position={[0, -1, 0]}
-        rotation-x={-Math.PI * 0.5}
-        scale={10}
-        // receiveShadow
-      >
-        <planeGeometry />
-        {/* <meshStandardMaterial color="green" side={THREE.DoubleSide} /> */}
-        <MeshReflectorMaterial
-          mirror={0.5}
-          resolution={512}
-          mixBlur={1}
-          color="yellow"
-        />
-      </mesh>
-      <Float speed={5} floatIntensity={2}>
+        <mesh
+          position={[0, -1, 0]}
+          rotation-x={-Math.PI * 0.5}
+          scale={10}
+          // receiveShadow
+        >
+          <planeGeometry />
+          {/* <meshStandardMaterial color="green" side={THREE.DoubleSide} /> */}
+          <MeshReflectorMaterial
+            mirror={0.5}
+            resolution={512}
+            mixBlur={1}
+            color="yellow"
+          />
+        </mesh>
+      </Stage>
+      {/* <Float speed={5} floatIntensity={2}>
         <Text
           position={[0, 2, 0]}
           fontSize={1}
@@ -177,7 +193,7 @@ const Experience: React.FC = () => {
           hello world!
           <meshNormalMaterial side={THREE.DoubleSide} />
         </Text>
-      </Float>
+      </Float> */}
     </>
   );
 };
