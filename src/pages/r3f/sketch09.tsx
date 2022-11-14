@@ -88,7 +88,7 @@ const Experience: FC = () => {
       <directionalLight position={[1, 2, 3]} intensity={1.5} />
       <ambientLight intensity={0.5} />
       <Physics gravity={[0, -9.08, 0]}>
-        {/* <Debug /> */}
+        <Debug />
         <RigidBody colliders="ball">
           <mesh castShadow position={[-1.5, 2, 0]}>
             <sphereGeometry />
