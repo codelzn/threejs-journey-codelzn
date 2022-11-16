@@ -1,14 +1,21 @@
-import { useRef, useState, FC, useMemo } from 'react';
-import { OrbitControls, useGLTF } from '@react-three/drei';
+import { useRef, useState, FC, useMemo, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
+import {
+  OrbitControls,
+  useGLTF,
+  KeyboardControls,
+  useKeyboardControls,
+} from '@react-three/drei';
 import {
   Physics,
   Debug,
   RigidBody,
   RigidBodyApi,
   CuboidCollider,
+  useRapier,
 } from '@react-three/rapier';
 import * as THREE from 'three';
+import * as RAPIER from '@dimforge/rapier3d-compat';
 // @ts-ignore
 THREE.ColorManagement.legacyMode = false;
 
@@ -236,7 +243,76 @@ const Level: FC<Partial<LevelProps>> = ({
     </>
   );
 };
+const Player: FC = () => {
+  const body = useRef<RigidBodyApi>(null!);
+  const [subscribeKeys, getKeys] = useKeyboardControls<Controls>();
+  const { rapier, world } = useRapier();
+  const rapierWorld = world.raw();
+  useFrame((state, delta) => {
+    const { forward, back, left, right } = getKeys();
+    // impluseは力の大きさ
+    const impulse = { x: 0, y: 0, z: 0 };
+    // torqueは回転の大きさ
+    const torque = { x: 0, y: 0, z: 0 };
+    const impulseStrength = 1 * delta;
+    const torqueStrength = 1 * delta;
 
+    if (forward) {
+      impulse.z -= impulseStrength;
+      torque.x -= torqueStrength;
+    }
+    if (back) {
+      impulse.z += impulseStrength;
+      torque.x += torqueStrength;
+    }
+    if (right) {
+      impulse.x += impulseStrength;
+      torque.z -= torqueStrength;
+    }
+    if (left) {
+      impulse.x -= impulseStrength;
+      torque.z += torqueStrength;
+    }
+
+    body.current.applyImpulse(impulse);
+    body.current.applyTorqueImpulse(torque);
+  });
+  const jump = () => {
+    const origin = body.current.translation();
+    origin.y -= 0.31;
+    const direction = { x: 0, y: -1, z: 0 };
+    const ray = new rapier.Ray(origin, direction);
+    const hit = rapierWorld.castRay(ray, 10, true)!;
+    if (hit.toi < 0.15) {
+      body.current.applyImpulse({ x: 0, y: 0.5, z: 0 });
+    }
+  };
+  useEffect(() => {
+    subscribeKeys(
+      // @ts-ignore
+      state => state.jump,
+      value => value && jump()
+    );
+  }, []);
+  return (
+    <>
+      <RigidBody
+        ref={body}
+        colliders="ball"
+        restitution={0.2}
+        friction={1}
+        linearDamping={0.5}
+        angularDamping={0.5}
+        position={[0, 1, 0]}
+      >
+        <mesh castShadow>
+          <icosahedronGeometry args={[0.3, 1]} />
+          <meshStandardMaterial flatShading color="mediumpurple" />
+        </mesh>
+      </RigidBody>
+    </>
+  );
+};
 const Lights = () => {
   return (
     <>
@@ -265,23 +341,40 @@ const Experience = () => {
         <Debug />
         <Lights />
         <Level />
+        <Player />
       </Physics>
     </>
   );
 };
-
+enum Controls {
+  forward = 'forward',
+  back = 'back',
+  left = 'left',
+  right = 'right',
+  jump = 'jump',
+}
 export default function Sketch10() {
   return (
-    <Canvas
-      shadows
-      camera={{
-        fov: 45,
-        near: 0.1,
-        far: 200,
-        position: [2.5, 4, 6],
-      }}
+    <KeyboardControls
+      map={[
+        { name: Controls.forward, keys: ['ArrowUp', 'KeyW'] },
+        { name: Controls.back, keys: ['ArrowDown', 'KeyS'] },
+        { name: Controls.left, keys: ['ArrowLeft', 'KeyA'] },
+        { name: Controls.right, keys: ['ArrowRight', 'KeyD'] },
+        { name: Controls.jump, keys: ['Space'] },
+      ]}
     >
-      <Experience />
-    </Canvas>
+      <Canvas
+        shadows
+        camera={{
+          fov: 45,
+          near: 0.1,
+          far: 200,
+          position: [2.5, 4, 6],
+        }}
+      >
+        <Experience />
+      </Canvas>
+    </KeyboardControls>
   );
 }
