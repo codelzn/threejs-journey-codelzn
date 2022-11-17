@@ -1,7 +1,6 @@
 import { useRef, useState, FC, useMemo, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import {
-  OrbitControls,
   useGLTF,
   KeyboardControls,
   useKeyboardControls,
@@ -16,6 +15,7 @@ import {
 } from '@react-three/rapier';
 import * as THREE from 'three';
 import * as RAPIER from '@dimforge/rapier3d-compat';
+import { useGame } from '@/stores/useGame';
 // @ts-ignore
 THREE.ColorManagement.legacyMode = false;
 
@@ -248,6 +248,10 @@ const Player: FC = () => {
   const [subscribeKeys, getKeys] = useKeyboardControls<Controls>();
   const { rapier, world } = useRapier();
   const rapierWorld = world.raw();
+  const [smoothedCameraPosition] = useState(
+    () => new THREE.Vector3(10, 10, 10)
+  );
+  const [smoothedCameraTarget] = useState(() => new THREE.Vector3());
   useFrame((state, delta) => {
     const { forward, back, left, right } = getKeys();
     // impluseは力の大きさ
@@ -276,23 +280,44 @@ const Player: FC = () => {
 
     body.current.applyImpulse(impulse);
     body.current.applyTorqueImpulse(torque);
+
+    const bodyPosition = body.current.translation();
+    const cameraPosition = new THREE.Vector3();
+    cameraPosition.copy(bodyPosition);
+    cameraPosition.z += 2.25;
+    cameraPosition.y += 0.65;
+
+    const cameraTarget = new THREE.Vector3();
+    cameraTarget.copy(bodyPosition);
+    cameraTarget.y += 0.25;
+
+    smoothedCameraPosition.lerp(cameraPosition, 5 * delta);
+    smoothedCameraTarget.lerp(cameraTarget, 5 * delta);
+
+    state.camera.position.copy(smoothedCameraPosition);
+    state.camera.lookAt(smoothedCameraTarget);
   });
   const jump = () => {
     const origin = body.current.translation();
     origin.y -= 0.31;
     const direction = { x: 0, y: -1, z: 0 };
     const ray = new rapier.Ray(origin, direction);
-    const hit = rapierWorld.castRay(ray, 10, true)!;
+    const hit = rapierWorld.castRay(ray, 10, true) ?? { toi: 2 };
     if (hit.toi < 0.15) {
       body.current.applyImpulse({ x: 0, y: 0.5, z: 0 });
     }
   };
   useEffect(() => {
-    subscribeKeys(
+    const unsubscribeJump = subscribeKeys(
       // @ts-ignore
       state => state.jump,
       value => value && jump()
     );
+    const unsubscribeAny = subscribeKeys(() => console.log('any key down'));
+    return () => {
+      unsubscribeJump();
+      unsubscribeAny();
+    };
   }, []);
   return (
     <>
@@ -314,9 +339,17 @@ const Player: FC = () => {
   );
 };
 const Lights = () => {
+  const light = useRef<THREE.DirectionalLight>(null!);
+
+  useFrame(state => {
+    light.current.position.z = state.camera.position.z + 1 - 4;
+    light.current.target.position.z = state.camera.position.z - 4;
+    light.current.target.updateMatrixWorld();
+  });
   return (
     <>
       <directionalLight
+        ref={light}
         castShadow
         position={[4, 4, 1]}
         intensity={1.5}
@@ -332,15 +365,40 @@ const Lights = () => {
     </>
   );
 };
-
+const Interface: FC = () => {
+  const forward = useKeyboardControls(state => state.forward);
+  const back = useKeyboardControls(state => state.back);
+  const left = useKeyboardControls(state => state.left);
+  const right = useKeyboardControls(state => state.right);
+  const jump = useKeyboardControls(state => state.jump);
+  return (
+    <div className="interface">
+      <div className="time">0.00</div>
+      <div className="restart">Restart</div>
+      <div className="controls">
+        <div className="raw">
+          <div className={`key ${forward ? 'active' : ''}`}></div>
+        </div>
+        <div className="raw">
+          <div className={`key ${left ? 'active' : ''}`}></div>
+          <div className={`key ${back ? 'active' : ''}`}></div>
+          <div className={`key ${right ? 'active' : ''}`}></div>
+        </div>
+        <div className="raw">
+          <div className={`key large ${jump ? 'active' : ''}`}></div>
+        </div>
+      </div>
+    </div>
+  );
+};
 const Experience = () => {
+  const blocksCount = useGame(state => state.blocksCount);
   return (
     <>
-      <OrbitControls makeDefault />
       <Physics>
-        <Debug />
+        {/* <Debug /> */}
         <Lights />
-        <Level />
+        <Level count={blocksCount} />
         <Player />
       </Physics>
     </>
@@ -375,6 +433,7 @@ export default function Sketch10() {
       >
         <Experience />
       </Canvas>
+      <Interface />
     </KeyboardControls>
   );
 }
