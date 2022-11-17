@@ -1,9 +1,11 @@
 import { useRef, useState, FC, useMemo, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { addEffect, Canvas, useFrame } from '@react-three/fiber';
 import {
   useGLTF,
   KeyboardControls,
   useKeyboardControls,
+  Float,
+  Text,
 } from '@react-three/drei';
 import {
   Physics,
@@ -16,14 +18,31 @@ import {
 import * as THREE from 'three';
 import * as RAPIER from '@dimforge/rapier3d-compat';
 import { useGame } from '@/stores/useGame';
+import { DepthOfField, EffectComposer, SSR } from '@react-three/postprocessing';
 // @ts-ignore
 THREE.ColorManagement.legacyMode = false;
 
 const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
-const floor1Material = new THREE.MeshStandardMaterial({ color: 'limegreen' });
-const floor2Material = new THREE.MeshStandardMaterial({ color: 'greenyellow' });
-const obstacleMaterial = new THREE.MeshStandardMaterial({ color: 'orangered' });
-const wallMaterial = new THREE.MeshStandardMaterial({ color: 'slategrey' });
+const floor1Material = new THREE.MeshStandardMaterial({
+  color: '#111',
+  metalness: 0,
+  roughness: 0,
+});
+const floor2Material = new THREE.MeshStandardMaterial({
+  color: '#222',
+  metalness: 0,
+  roughness: 0,
+});
+const obstacleMaterial = new THREE.MeshStandardMaterial({
+  color: '#f00',
+  metalness: 0,
+  roughness: 1,
+});
+const wallMaterial = new THREE.MeshStandardMaterial({
+  color: '#877',
+  metalness: 0,
+  roughness: 0,
+});
 
 type BlockProps = {
   position?: [number, number, number];
@@ -31,6 +50,20 @@ type BlockProps = {
 const BlockStart: FC<BlockProps> = ({ position = [0, 0, 0] }) => {
   return (
     <group position={position}>
+      <Float floatIntensity={0.25} rotationIntensity={0.25}>
+        <Text
+          font="/bangers-v20-latin-regular.woff"
+          scale={4}
+          maxWidth={0.25}
+          lineHeight={0.75}
+          textAlign="right"
+          position={[0.75, 0.65, 0]}
+          rotation-y={-0.25}
+        >
+          Marble Race
+          <meshBasicMaterial toneMapped={false} />
+        </Text>
+      </Float>
       <mesh
         geometry={boxGeometry}
         material={floor1Material}
@@ -46,6 +79,14 @@ const BlockEnd: FC<BlockProps> = ({ position = [0, 0, 0] }) => {
   hamburger.scene.children.forEach(mesh => (mesh.castShadow = true));
   return (
     <group position={position}>
+      <Text
+        font="/bangers-v20-latin-regular.woff"
+        scale={8}
+        position={[0, 2.25, 2]}
+      >
+        FINISH
+        <meshBasicMaterial toneMapped={false} />
+      </Text>
       <mesh
         geometry={boxGeometry}
         material={floor1Material}
@@ -219,10 +260,12 @@ const Bounds: FC<{ length: number }> = ({ length = 1 }) => {
 type LevelProps = {
   count: number;
   types: FC[];
+  seed: number;
 };
 const Level: FC<Partial<LevelProps>> = ({
   count = 5,
   types = [BlockSpinner, BlockAxe, BlockLimbo],
+  seed = 0,
 }) => {
   const blocks = useMemo(() => {
     const blocks = [];
@@ -231,7 +274,7 @@ const Level: FC<Partial<LevelProps>> = ({
       blocks.push(type);
     }
     return blocks;
-  }, [count, types]);
+  }, [count, types, seed]);
   return (
     <>
       <BlockStart position={[0, 0, 0]} />
@@ -252,6 +295,12 @@ const Player: FC = () => {
     () => new THREE.Vector3(10, 10, 10)
   );
   const [smoothedCameraTarget] = useState(() => new THREE.Vector3());
+
+  const start = useGame(state => state.start);
+  const end = useGame(state => state.end);
+  const restart = useGame(state => state.restart);
+  const blocksCount = useGame(state => state.blocksCount);
+
   useFrame((state, delta) => {
     const { forward, back, left, right } = getKeys();
     // impluseは力の大きさ
@@ -296,6 +345,13 @@ const Player: FC = () => {
 
     state.camera.position.copy(smoothedCameraPosition);
     state.camera.lookAt(smoothedCameraTarget);
+
+    if (bodyPosition.z < -(blocksCount * 4 + 2)) {
+      end();
+    }
+    if (bodyPosition.y < -4) {
+      restart();
+    }
   });
   const jump = () => {
     const origin = body.current.translation();
@@ -307,14 +363,28 @@ const Player: FC = () => {
       body.current.applyImpulse({ x: 0, y: 0.5, z: 0 });
     }
   };
+  const reset = () => {
+    body.current.setTranslation({ x: 0, y: 1, z: 0 });
+    body.current.setLinvel({ x: 0, y: 0, z: 0 });
+    body.current.setAngvel({ x: 0, y: 0, z: 0 });
+  };
   useEffect(() => {
+    const unsubscribeReset = useGame.subscribe(
+      state => state.phase,
+      value => {
+        if (value === 'ready') {
+          reset();
+        }
+      }
+    );
     const unsubscribeJump = subscribeKeys(
       // @ts-ignore
       state => state.jump,
       value => value && jump()
     );
-    const unsubscribeAny = subscribeKeys(() => console.log('any key down'));
+    const unsubscribeAny = subscribeKeys(() => start());
     return () => {
+      unsubscribeReset();
       unsubscribeJump();
       unsubscribeAny();
     };
@@ -366,15 +436,42 @@ const Lights = () => {
   );
 };
 const Interface: FC = () => {
+  const time = useRef<HTMLDivElement>(null);
+  const restart = useGame(state => state.restart);
+  const phase = useGame(state => state.phase);
   const forward = useKeyboardControls(state => state.forward);
   const back = useKeyboardControls(state => state.back);
   const left = useKeyboardControls(state => state.left);
   const right = useKeyboardControls(state => state.right);
   const jump = useKeyboardControls(state => state.jump);
+  useEffect(() => {
+    // addEffect可以在Canvas之外requestAnimationFrame
+    // 闭包环境
+    const unsubscribeEffect = addEffect(() => {
+      const state = useGame.getState();
+      let elapsedTime = 0;
+      if (state.phase === 'playing') {
+        elapsedTime = Date.now() - state.startTime;
+      } else if (state.phase === 'ended') {
+        elapsedTime = state.endTime - state.startTime;
+      }
+      elapsedTime /= 1000;
+      time.current && (time.current.textContent = elapsedTime.toFixed(2));
+    });
+    return () => {
+      unsubscribeEffect();
+    };
+  }, []);
   return (
     <div className="interface">
-      <div className="time">0.00</div>
-      <div className="restart">Restart</div>
+      <div ref={time} className="time">
+        0.00
+      </div>
+      {phase === 'ended' && (
+        <div className="restart" onClick={restart}>
+          Restart
+        </div>
+      )}
       <div className="controls">
         <div className="raw">
           <div className={`key ${forward ? 'active' : ''}`}></div>
@@ -391,16 +488,26 @@ const Interface: FC = () => {
     </div>
   );
 };
+const Effects: FC = () => {
+  return (
+    <EffectComposer>
+      <DepthOfField focusDistance={0.01} focalLength={0.2} bokehScale={3} />
+    </EffectComposer>
+  );
+};
 const Experience = () => {
   const blocksCount = useGame(state => state.blocksCount);
+  const blocksSeed = useGame(state => state.blocksSeed);
   return (
     <>
+      <color args={['#252731']} attach="background" />
       <Physics>
         {/* <Debug /> */}
         <Lights />
-        <Level count={blocksCount} />
+        <Level count={blocksCount} seed={blocksSeed} />
         <Player />
       </Physics>
+      <Effects />
     </>
   );
 };
